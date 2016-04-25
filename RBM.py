@@ -3,6 +3,14 @@ RBM.py
 Contains the class definition of a Restricted Boltzmann Machine designed to make
 predictions on items based on user ratings
 Author: Forest Thomas
+Notes:
+    This RBM is designed to be used for sparse, two-dimensional inputs
+    Therefore, most input vectors are going to be two dimensional
+    eg: input[m][r]
+        -m is the movie (or item)
+        -r is the rating for that item
+    The sparsity is handled by ignoring inputs with no ratings, therefore the calculations
+    will be dynamic based on which movies have been rated.
 """
 import math
 import pickle
@@ -14,7 +22,7 @@ class RBM:
         Initializes the RBM
         V - length of the input vector
         F - the number of hidden units
-        K - the number of ratings
+        K - the number of possible ratings
         rate - the learning rate
         """
         #set number of visible and hidden nodes
@@ -45,19 +53,23 @@ class RBM:
         #set learning rate
         self.eps = rate
 
-        #create hidden states
-        self.h = []
-        for j in range(0, F):
-            self.h.append(0)
-
     def set_input_biases(self, b):
+        """
+        Sets the input biases to the vector b
+        b should be the same dimensions as the length of the input vector
+        b - the new bias vector
+        return - None
+        """
         for i in range(0, self.V):
             for k in range(0, self.K):
                 self.vis_bias[i][j] = b[i][j]
 
-    def learn_batch(self, T, V, rated):
+    def learn_batch(self, T, V):
         """
         Does T steps of T-step contrastive divergence
+        T - The number of steps in CD
+        V - the set of input vectors
+        return - None
         """
         # initialization
         del_W = []
@@ -79,6 +91,7 @@ class RBM:
 
         # run all vectors in the batch
         for v in V:
+            rated = getRated(v)
             v_last = v
             h = []
             for t in range(0, T):
@@ -115,7 +128,10 @@ class RBM:
 
     def get_hidden_probabilities(self, v, rated):
         """
-        Gives the probabilities
+        Gives the probabilities of the hidden layer given an input vector
+        v - an input vector
+        rated - the movies rated in the input vector
+        return - a list of probabilities for the hidden layer
         """
         probs = []
         W = self.W
@@ -132,6 +148,7 @@ class RBM:
         """
         Rebuilds the input vector, given the set of hidden states
         returns probabilities of v
+        h - The a binary vector representing the hidden layer
         """
         b = self.vis_bias
         v = []
@@ -152,6 +169,9 @@ class RBM:
     def get_hidden_states(self, v, rated):
         """
         gives the hidden states of the rbm given an input vector
+        v - input vector
+        rated - movies rated in the input vector (list of indices)
+        return - a binary vector representing the hidden layer
         """
         W = self.W
         h = []
@@ -167,10 +187,33 @@ class RBM:
                 h.append(0)
         return h
 
-                
-    def get_prediction(self, v, q, k, rated):
+
+    def save_RBM(self, filename):
         """
-        Gets the probability of rating r of movie m given movies watched, watched
+        Saves the current RBM to a file
+        filename - the name of the file to save to
+        """
+        with open(filename, "w") as fout:
+            pickle.dump(self, fout)
+
+    def load_RBM(filename):
+        """
+        Loads an RBM from a file
+        filename - the name of the file to load from
+        """
+        with open(filename, "r") as fin:
+            rbm = pickle.load(fin)
+        return rbm
+
+
+    def get_prediction(self, v, rated, q, k):
+        """
+        Gets the probability that a user will give a movie a specific rating
+        v - the input vector (user movie ratings)
+        rated - the list indices that correspond to movies the user has rated
+        q - the movie to predict
+        k - the rating
+        return - the probability that the user will give movie q, rating k
         """
         W = self.W
         Gamma = math.e ** (v[q][k]*self.vis_bias[q][k])
@@ -182,50 +225,46 @@ class RBM:
                     s += v[i][r]*W[i][j][r] + v[q][k]*W[q][j][k] + self.hid_bias[j]
             prod *= s
         return Gamma * prod
-        
-        pass
-
-    def save_RBM(self, filename):
-        """
-        Saves the current RBM to a file
-        """
-        with open(filename, "w") as fout:
-            pickle.dump(self, fout)
-
-    def load_RBM(filename):
-        """
-        Loads an RBM from a file
-        """
-        with open(filename, "r") as fin:
-            rbm = pickle.load(fin)
-        return rbm
-
-    def set_hidden_states(self, v, rated):
-        """
-        sets the hidden states of the rbm given an input vector
-        """
-        W = self.W
-        for j in range(0, self.F):
-            s = 0
-            for i in rated:
-                for k in range(0, self.K):
-                    s += v[i][k]*W[i][j][k]
-            prob = sig(self.hid_bias[j] + s)
-            if prob > random():
-                self.h[j] = 1
-            else:
-                self.h[j] = 0
-
-    def set_hidden_by_prob(self, probabilities):
-        """
-        Sets the hidden states using a vector of probabilities
-        """
-        for j in range(0, self.F):
-            if probabilities[j] > random():
-                self.h[j] = 1
-            else:
-                self.h[j] = 0
 
     
+    def get_highest_rating(self, v, rated):
+        """
+        Gives a movie recommendation based on an input vector
+        v -  the input vector
+        rated - the movies rated in the input vector
+        return - the index of the movie recommended along with the probability
+        that the machine gives for that movie at the maximum rating
+        """
+        highest = [] #contains probabilities for the highest rating available
+        for i in range(0, self.V):
+            five_star.append(0)
+            if i in rated:
+                continue
+            highest[i] = get_prediction(v, rated, i, self.K - 1)
+            
+        # find highest probability
+        m, index = (highest[0], 0)
+        for i in range(1, len(highest)):
+            if highest[i] > m:
+                (m, index) = (highest[i], i)
+        return i, m
+        
 def sig(x):
+    """
+    Sigmoid function
+    x - real number input
+    return - sigmoid(x)
+    """
     return 1 / (1 + math.e ** -x)
+
+def get_rated(v):
+    """
+    Gives the indices of movies that hae a rating (i.e. not None) in the vector
+    v - vector containing mostly None with numbers
+    return - an array of indices that have been rated in the vector
+    """
+    rated = []
+    for i in range(0, len(v)):
+        if v[i] != None:
+            rated.append(i)
+    return rated

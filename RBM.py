@@ -93,10 +93,10 @@ class RBM:
         # run all vectors in the batch
         for v in V:
             rated = getRated(v)
-            v_last = v
+            v_last = self.rebuild_input(rated, self.get_hidden_states(v, rated))
             h = []
-            for t in range(0, T):
-                h = self.get_hidden_states(v_last, rated)
+            for t in range(1, T):
+                h = self.get_hidden_probabilities(v_last, rated)
                 v_last = self.rebuild_input(rated, h)
 
             #get change in visible bias

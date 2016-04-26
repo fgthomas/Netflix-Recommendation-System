@@ -78,7 +78,7 @@ class RBM:
             for j in range(0, self.F):
                 del_W[i].append([])
                 for k in range(0, self.K):
-                    del_W[i][j].append(k)
+                    del_W[i][j].append(0)
         del_vis_bias = []
         for i in range(0, self.V):
             del_vis_bias.append([])

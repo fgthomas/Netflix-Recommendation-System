@@ -44,11 +44,11 @@ class RBM:
         for i in range(0, V):
             self.vis_bias.append([])
             for k in range(0, K):
-                self.vis_bias[i].append(normalvariate(0, .01))
+                self.vis_bias[i].append(0)
 
         self.hid_bias = []
         for j in range(0, F):
-            self.hid_bias.append(normalvariate(0, .01))
+            self.hid_bias.append(0)
 
         #set learning rate
         self.eps = rate
@@ -62,7 +62,7 @@ class RBM:
         """
         for i in range(0, self.V):
             for k in range(0, self.K):
-                self.vis_bias[i][j] = b[i][j]
+                self.vis_bias[i][k] = b[i][k]
 
     def learn_batch(self, T, V):
         """
@@ -83,12 +83,13 @@ class RBM:
         for i in range(0, self.V):
             del_vis_bias.append([])
             for k in range(0, self.K):
-                del_vis_bias[k].append(0)
+                del_vis_bias[i].append(0)
 
         del_hid_bias = []
         for j in range(0, self.F):
             del_hid_bias.append(0)
 
+        eps = self.eps / len(V)
         # run all vectors in the batch
         for v in V:
             rated = getRated(v)
@@ -96,15 +97,15 @@ class RBM:
             h = []
             for t in range(0, T):
                 h = self.get_hidden_states(v_last, rated)
-                v_last = self.rebuild_input(h)
-                
+                v_last = self.rebuild_input(rated, h)
+
             #get change in visible bias
-            for i in range(0, self.V):
+            for i in rated:
                 for k in range(0, self.K):
-                    del_vis_bias[i][k] += eps*(v_orig[i][k] - v_last[i][j])
+                    del_vis_bias[i][k] += eps*(v[i][k] - v_last[i][k])
 
             #get change in hidden bias
-            hdata = self.get_hidden_probabilities(v_orig, rated)
+            hdata = self.get_hidden_probabilities(v, rated)
             hmodel = self.get_hidden_probabilities(v_last, rated)
             for j in range(0, self.F):
                 del_hid_bias[j] += eps*(hdata[j] - hmodel[j])
@@ -113,7 +114,7 @@ class RBM:
             for i in rated:
                 for j in range(0, self.F):
                     for k in range(0, self.K):
-                        del_W[i][j][k] += eps*(hdata[j]*v[i][k] - hmodel*v_last[i][k])
+                        del_W[i][j][k] += eps*(hdata[j]*v[i][k] - hmodel[j]*v_last[i][k])
         #update weights
         for i in range(0, self.V):
             for k in range(0, self.K):
@@ -144,18 +145,18 @@ class RBM:
         return probs
     
         
-    def rebuild_input(self, h):
+    def rebuild_input(self, rated, h):
         """
         Rebuilds the input vector, given the set of hidden states
         returns probabilities of v
         h - The a binary vector representing the hidden layer
         """
         b = self.vis_bias
-        v = []
-        for i in range(0, self.V):
-            v.append([])
+        v = [[]]*self.V
+        W = self.W
+        for i in rated:
             for k in range(0, self.K):
-                prob = bias[i][k]
+                prob = b[i][k]
                 for j in range(0, self.F):
                     prob += h[j]*W[i][j][k]
                 prob = sig(prob)
@@ -193,7 +194,7 @@ class RBM:
         Saves the current RBM to a file
         filename - the name of the file to save to
         """
-        with open(filename, "w") as fout:
+        with open(filename, "wb") as fout:
             pickle.dump(self, fout)
 
     def load_RBM(filename):
@@ -201,30 +202,26 @@ class RBM:
         Loads an RBM from a file
         filename - the name of the file to load from
         """
-        with open(filename, "r") as fin:
+        with open(filename, "rb") as fin:
             rbm = pickle.load(fin)
         return rbm
+        
 
-
-    def get_prediction(self, v, rated, q, k):
+    def get_prediction(self, movie, h):
         """
-        Gets the probability that a user will give a movie a specific rating
-        v - the input vector (user movie ratings)
-        rated - the list indices that correspond to movies the user has rated
-        q - the movie to predict
-        k - the rating
-        return - the probability that the user will give movie q, rating k
+        Gives the prediction of a movie given a hidden layer
+        This is calculated by taking Expected value over all ratings for the movie
+        movie - the movie to predict
+        h - the hidden layer
+        return - a prediction for the movie
         """
-        W = self.W
-        Gamma = math.e ** (v[q][k]*self.vis_bias[q][k])
-        prod = 1
-        for j in range(0, self.F):
-            s = 1 # 1 + stuff in for loop
-            for i in rated:
-                for r in range(0, self.K):
-                    s += v[i][r]*W[i][j][r] + v[q][k]*W[q][j][k] + self.hid_bias[j]
-            prod *= s
-        return Gamma * prod
+        prob = 0
+        for k in range(0, 5):
+            s = self.vis_bias[movie][k]
+            for j in range(0, self.F):
+                s += h[j]*self.W[movie][j][k]
+            prob += (sig(s)*(k+1))
+        return prob
 
     
     def get_highest_rating(self, v, rated):
@@ -235,19 +232,21 @@ class RBM:
         return - the index of the movie recommended along with the probability
         that the machine gives for that movie at the maximum rating
         """
+        h = self.get_hidden_probabilities(v, rated)
         highest = [] #contains probabilities for the highest rating available
         for i in range(0, self.V):
-            five_star.append(0)
+            highest.append(0)
             if i in rated:
                 continue
-            highest[i] = get_prediction(v, rated, i, self.K - 1)
+            highest[i] = self.get_prediction(i, h)
+            print("movie: {0} prediction: {1}".format(i, highest[i]))
             
         # find highest probability
         m, index = (highest[0], 0)
         for i in range(1, len(highest)):
             if highest[i] > m:
                 (m, index) = (highest[i], i)
-        return i, m
+        return index, m
         
 def sig(x):
     """
@@ -257,7 +256,7 @@ def sig(x):
     """
     return 1 / (1 + math.e ** -x)
 
-def get_rated(v):
+def getRated(v):
     """
     Gives the indices of movies that hae a rating (i.e. not None) in the vector
     v - vector containing mostly None with numbers

@@ -7,22 +7,24 @@ Author: Forest Thomas
 
 from RBM import *
 import getvectors
+import random
 
 def main():
-    rbm = RBM(17771, 100, 5, .01)
+    """rbm = RBM(17771, 100, 5, .01)
     print("Creation passed")
-    rbm.save_RBM("test_start.rbm")
-    print("Saving passed")
-    rbm = RBM.load_RBM("test_start.rbm")
-    print("Loading passed")
+    rbm.save_RBM("test2.rbm")
+    print("Saving passed")"""
+    rbm = RBM.load_RBM("test2.rbm")
     a = []
-    for i in range(1, 10):
+    a.append(getvectors.getFrom(int(random.randrange(-1, 1000000))))
+    for i in range(1, 2000):
         a = []
-        for j in range(0, 10):
+        for j in range(0, 50):
             a.append(getvectors.getFormattedVector())
         print("batch loaded... learning...")
         rbm.learn_batch(1, a)
         print("batch {0} completed".format(i))
+        rbm.save_RBM("test2.rbm")
     print("learn_batch passed")
     print(rbm.get_highest_rating(a[0], getRated(a[0])))
 

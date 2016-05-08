@@ -152,7 +152,9 @@ class RBM:
         h - The a binary vector representing the hidden layer
         """
         b = self.vis_bias
-        v = [[]]*self.V
+        v = []
+        for i in range(0, self.V):
+            v.append([])
         W = self.W
         for i in rated:
             for k in range(0, self.K):
